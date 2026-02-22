@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd C:\\\\Users\\\\razva\\\\source\\\\repos\\\\BleMidiMonitor\\\\BleMidiMonitor\\\\BleMidiMonitor:*)"
+    ]
+  }
+}

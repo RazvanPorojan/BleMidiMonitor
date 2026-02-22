@@ -41,6 +41,10 @@
                     Click="DisconnectButton_Click"
                     Padding="20,10"
                     IsEnabled="False"/>
+            <Button x:Name="ShowFretboardButton"
+                    Content="AeroBand Fret"
+                    Click="ShowFretboardButton_Click"
+                    Padding="20,10"/>
         </StackPanel>
 
         <TextBlock Grid.Row="2"

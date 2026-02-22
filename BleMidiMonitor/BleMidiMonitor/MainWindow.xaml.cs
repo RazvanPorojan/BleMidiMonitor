@@ -13,6 +13,8 @@ namespace BleMidiMonitor
         private BleMidiDevice _connectedDevice;
         private int _messageCount = 0;
         private const int MaxLogMessages = 1000;
+        private FretState _fretState;
+        private FretboardWindow _fretboardWindow;
 
         public MainWindow()
         {
@@ -23,6 +25,8 @@ namespace BleMidiMonitor
 
             _midiLog = new ObservableCollection<string>();
             MidiLogListView.ItemsSource = _midiLog;
+
+            _fretState = new FretState();
 
             _bleMidiManager = new BleMidiManager();
             _bleMidiManager.DeviceDiscovered += OnDeviceDiscovered;
@@ -203,6 +207,9 @@ namespace BleMidiMonitor
                         {
                             _midiLog.RemoveAt(0);
                         }
+
+                        // Process AeroBand fret events
+                        ProcessFretEvent(message);
                     }
 
                     // Update message counter
@@ -224,11 +231,54 @@ namespace BleMidiMonitor
             }
         }
 
+        private void ProcessFretEvent(MidiMessage message)
+        {
+            // AeroBand Fret mapping:
+            // Channel = string number (1-6, where 6 is low E)
+            // Controller 49 = "note on" - fret touched
+            // Controller 50 = "note off" - fret released
+            // Value = fret number (1-22)
+
+            if (message.MessageType == "Control Change")
+            {
+                int controller = message.Data1;
+                int fretNumber = message.Data2;
+                int stringNumber = message.Channel;
+
+                if (controller == 49) // Fret touched
+                {
+                    _fretState.UpdateFret(stringNumber, fretNumber, true);
+                }
+                else if (controller == 50) // Fret released
+                {
+                    _fretState.UpdateFret(stringNumber, fretNumber, false);
+                }
+            }
+        }
+
         private void ClearLogButton_Click(object sender, RoutedEventArgs e)
         {
             _midiLog.Clear();
             _messageCount = 0;
             MessageCountText.Text = "Messages: 0";
+        }
+
+        private void ShowFretboardButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_fretboardWindow == null)
+            {
+                _fretboardWindow = new FretboardWindow(_fretState);
+                _fretboardWindow.Closed += (s, args) =>
+                {
+                    _fretboardWindow?.Cleanup();
+                    _fretboardWindow = null;
+                };
+                _fretboardWindow.Activate();
+            }
+            else
+            {
+                _fretboardWindow.Activate();
+            }
         }
     }
 }
