@@ -11,24 +11,36 @@ namespace BleMidiMonitor
 
         public void UpdateFret(int stringNumber, int fretNumber, bool isActive)
         {
+            bool shouldFire = false;
+
             lock (_lock)
             {
                 if (isActive)
                 {
+                    // Skip if already active at same fret
+                    if (_activeFretsPerString.TryGetValue(stringNumber, out int current) && current == fretNumber)
+                        return;
+
                     _activeFretsPerString[stringNumber] = fretNumber;
+                    shouldFire = true;
                 }
                 else
                 {
-                    _activeFretsPerString.Remove(stringNumber);
+                    // Skip if not currently active
+                    shouldFire = _activeFretsPerString.Remove(stringNumber);
                 }
             }
 
-            FretChanged?.Invoke(this, new FretChangedEventArgs
+            // Fire event outside lock
+            if (shouldFire)
             {
-                StringNumber = stringNumber,
-                FretNumber = fretNumber,
-                IsActive = isActive
-            });
+                FretChanged?.Invoke(this, new FretChangedEventArgs
+                {
+                    StringNumber = stringNumber,
+                    FretNumber = fretNumber,
+                    IsActive = isActive
+                });
+            }
         }
 
         public int? GetActiveFret(int stringNumber)

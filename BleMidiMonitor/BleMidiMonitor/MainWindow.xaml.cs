@@ -9,7 +9,7 @@ namespace BleMidiMonitor
     {
         private BleMidiManager _bleMidiManager;
         private ObservableCollection<BleMidiDevice> _devices;
-        private ObservableCollection<string> _midiLog;
+        private MidiLogBatcher _midiLogBatcher;
         private BleMidiDevice _connectedDevice;
         private int _messageCount = 0;
         private const int MaxLogMessages = 1000;
@@ -23,8 +23,8 @@ namespace BleMidiMonitor
             _devices = new ObservableCollection<BleMidiDevice>();
             DeviceListView.ItemsSource = _devices;
 
-            _midiLog = new ObservableCollection<string>();
-            MidiLogListView.ItemsSource = _midiLog;
+            _midiLogBatcher = new MidiLogBatcher(MaxLogMessages, DispatcherQueue);
+            MidiLogListView.ItemsSource = _midiLogBatcher.DisplayCollection;
 
             _fretState = new FretState();
 
@@ -189,37 +189,23 @@ namespace BleMidiMonitor
         {
             try
             {
-                // Parse MIDI data
                 var messages = MidiMessageParser.ParseBleMidiPacket(data);
 
-                // Update UI on the UI thread
+                foreach (var message in messages)
+                {
+                    string logEntry = $"[{message.Timestamp:HH:mm:ss.fff}] {message.FormattedMessage}";
+
+                    // Just batch it - no UI thread operations
+                    _midiLogBatcher.AddMessage(logEntry);
+                    _messageCount++;
+
+                    ProcessFretEvent(message);
+                }
+
+                // Update counter (throttled by batcher)
                 DispatcherQueue.TryEnqueue(() =>
                 {
-                    foreach (var message in messages)
-                    {
-                        // Format: [HH:mm:ss.fff] Message
-                        string logEntry = $"[{message.Timestamp:HH:mm:ss.fff}] {message.FormattedMessage}";
-                        _midiLog.Add(logEntry);
-                        _messageCount++;
-
-                        // Limit log size to prevent memory issues
-                        if (_midiLog.Count > MaxLogMessages)
-                        {
-                            _midiLog.RemoveAt(0);
-                        }
-
-                        // Process AeroBand fret events
-                        ProcessFretEvent(message);
-                    }
-
-                    // Update message counter
                     MessageCountText.Text = $"Messages: {_messageCount}";
-
-                    // Auto-scroll to bottom
-                    if (MidiLogListView.Items.Count > 0)
-                    {
-                        MidiLogListView.ScrollIntoView(MidiLogListView.Items[MidiLogListView.Items.Count - 1]);
-                    }
                 });
             }
             catch (Exception ex)
@@ -258,7 +244,7 @@ namespace BleMidiMonitor
 
         private void ClearLogButton_Click(object sender, RoutedEventArgs e)
         {
-            _midiLog.Clear();
+            _midiLogBatcher.Clear();
             _messageCount = 0;
             MessageCountText.Text = "Messages: 0";
         }

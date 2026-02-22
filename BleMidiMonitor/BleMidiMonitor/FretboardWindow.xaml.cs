@@ -1,4 +1,5 @@
 using Microsoft.UI;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
@@ -26,6 +27,12 @@ namespace BleMidiMonitor
         private readonly SolidColorBrush _fretLineBrush;
         private readonly SolidColorBrush _stringLineBrush;
 
+        // Performance optimization caches
+        private readonly Dictionary<(int, int), bool> _fretStateCache = new Dictionary<(int, int), bool>();
+        private readonly Dictionary<(int, int), string> _keyCache = new Dictionary<(int, int), string>();
+        private readonly List<(int, int, bool)> _pendingUpdates = new List<(int, int, bool)>();
+        private DispatcherQueueTimer _updateTimer;
+
         public FretboardWindow(FretState fretState)
         {
             InitializeComponent();
@@ -37,6 +44,21 @@ namespace BleMidiMonitor
             _activeBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 200, 100));
             _fretLineBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(180, 160, 160, 160));
             _stringLineBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(150, 140, 140, 140));
+
+            // Pre-compute dictionary keys to avoid string allocations
+            for (int str = 1; str <= StringCount; str++)
+            {
+                for (int fret = 1; fret <= FretCount; fret++)
+                {
+                    _keyCache[(str, fret)] = $"{str}_{fret}";
+                }
+            }
+
+            // Initialize batch timer for 60 Hz updates
+            _updateTimer = DispatcherQueue.CreateTimer();
+            _updateTimer.Interval = TimeSpan.FromMilliseconds(16); // 60 Hz
+            _updateTimer.Tick += ProcessBatchedUpdates;
+            _updateTimer.Start();
 
             // Set window to always on top
             SetAlwaysOnTop();
@@ -176,10 +198,26 @@ namespace BleMidiMonitor
 
         private void OnFretChanged(object sender, FretChangedEventArgs e)
         {
-            DispatcherQueue.TryEnqueue(() =>
+            lock (_pendingUpdates)
             {
-                UpdateFretDisplay(e.StringNumber, e.FretNumber, e.IsActive);
-            });
+                _pendingUpdates.Add((e.StringNumber, e.FretNumber, e.IsActive));
+            }
+        }
+
+        private void ProcessBatchedUpdates(DispatcherQueueTimer sender, object args)
+        {
+            List<(int, int, bool)> updates;
+            lock (_pendingUpdates)
+            {
+                if (_pendingUpdates.Count == 0) return;
+                updates = new List<(int, int, bool)>(_pendingUpdates);
+                _pendingUpdates.Clear();
+            }
+
+            foreach (var (str, fret, active) in updates)
+            {
+                UpdateFretDisplay(str, fret, active);
+            }
         }
 
         private void UpdateFretDisplay(int stringNumber, int fretNumber, bool isActive)
@@ -187,9 +225,18 @@ namespace BleMidiMonitor
             if (stringNumber < 1 || stringNumber > StringCount || fretNumber < 1 || fretNumber > FretCount)
                 return;
 
-            string key = $"{stringNumber}_{fretNumber}";
+            var key = (stringNumber, fretNumber);
 
-            if (_fretRectangles.TryGetValue(key, out var rect) && _fretLabels.TryGetValue(key, out var label))
+            // Check cache - skip if no change
+            if (_fretStateCache.TryGetValue(key, out var cached) && cached == isActive)
+                return;
+
+            _fretStateCache[key] = isActive;
+
+            // Get pre-computed string key
+            string dictKey = _keyCache[key];
+
+            if (_fretRectangles.TryGetValue(dictKey, out var rect) && _fretLabels.TryGetValue(dictKey, out var label))
             {
                 if (isActive)
                 {
@@ -207,6 +254,7 @@ namespace BleMidiMonitor
         public void Cleanup()
         {
             _fretState.FretChanged -= OnFretChanged;
+            _updateTimer?.Stop();
         }
     }
 }
