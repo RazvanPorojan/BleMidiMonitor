@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dotnet build:*)",
+      "Bash(head:*)",
+      "Bash(find:*)",
+      "Bash(cd C:\\\\Users\\\\razva\\\\source\\\\repos\\\\hello_world\\\\hello_world\\\\hello_world:*)",
+      "Bash(cd C:\\\\Users\\\\razva\\\\source\\\\repos\\\\hello_world\\\\hello_world\\\\hello_world \\(Package\\):*)",
+      "Bash(cd C:\\\\Users\\\\razva\\\\source\\\\repos\\\\hello_world:*)",
+      "Bash(cd C:\\\\Users\\\\razva\\\\source\\\\repos\\\\hello_world\\\\hello_world:*)"
+    ]
+  }
+}
