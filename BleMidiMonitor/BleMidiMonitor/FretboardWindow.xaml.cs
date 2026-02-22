@@ -212,6 +212,60 @@ namespace BleMidiMonitor
                 };
                 FretboardCanvas.Children.Add(fretLine);
             }
+
+            // Draw fret markers (inlay dots)
+            var dotBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(100, 200, 200, 200));
+            int[] singleDotFrets = { 3, 5, 7, 9, 15, 17, 19, 21 };
+            int[] doubleDotFrets = { 12 };
+
+            foreach (int fret in singleDotFrets)
+            {
+                if (fret <= FretCount)
+                {
+                    var dot = new Ellipse
+                    {
+                        Width = 12,
+                        Height = 12,
+                        Fill = dotBrush
+                    };
+                    double x = StartX + (fret - 1) * FretWidth + FretWidth / 2 - 6;
+                    double y = StartY + (StringCount * StringHeight) / 2 - 6;
+                    Canvas.SetLeft(dot, x);
+                    Canvas.SetTop(dot, y);
+                    FretboardCanvas.Children.Add(dot);
+                }
+            }
+
+            foreach (int fret in doubleDotFrets)
+            {
+                if (fret <= FretCount)
+                {
+                    // Top dot
+                    var dot1 = new Ellipse
+                    {
+                        Width = 12,
+                        Height = 12,
+                        Fill = dotBrush
+                    };
+                    double x = StartX + (fret - 1) * FretWidth + FretWidth / 2 - 6;
+                    double y1 = StartY + StringHeight * 1.5 - 6;
+                    Canvas.SetLeft(dot1, x);
+                    Canvas.SetTop(dot1, y1);
+                    FretboardCanvas.Children.Add(dot1);
+
+                    // Bottom dot
+                    var dot2 = new Ellipse
+                    {
+                        Width = 12,
+                        Height = 12,
+                        Fill = dotBrush
+                    };
+                    double y2 = StartY + StringHeight * 4.5 - 6;
+                    Canvas.SetLeft(dot2, x);
+                    Canvas.SetTop(dot2, y2);
+                    FretboardCanvas.Children.Add(dot2);
+                }
+            }
         }
 
         private void OnFretChanged(object sender, FretChangedEventArgs e)
