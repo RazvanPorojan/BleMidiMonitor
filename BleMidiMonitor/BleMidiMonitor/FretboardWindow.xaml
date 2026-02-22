@@ -56,7 +56,7 @@
 
                 <!-- Fretboard Canvas -->
                 <Canvas x:Name="FretboardCanvas"
-                        Width="1100"
+                        Width="750"
                         Height="240"/>
             </StackPanel>
         </ScrollViewer>

@@ -16,11 +16,16 @@ namespace BleMidiMonitor
         private readonly Dictionary<string, TextBlock> _fretLabels = new Dictionary<string, TextBlock>();
         private const int FretCount = 22;
         private const int StringCount = 6;
-        private const double FretWidth = 45;
         private const double StringHeight = 35;
         private const double StartX = 80;
         private const double StartY = 10;
         private readonly string[] StringNames = { "e", "B", "G", "D", "A", "E" }; // High to low
+
+        // Realistic fret spacing configuration
+        private const double ScaleLength = 650.0;      // Virtual scale length in pixels
+        private const double FretboardScale = 0.95;    // Scale factor to fit window
+        private readonly double[] _fretPositions;      // Cumulative X positions [0..22]
+        private readonly double[] _fretWidths;         // Individual fret widths [0..21]
 
         // Open string notes for standard tuning (chromatic scale index)
         // E=4, A=9, D=2, G=7, B=11, e=4
@@ -68,13 +73,43 @@ namespace BleMidiMonitor
                 }
             }
 
+            // Pre-calculate realistic fret positions (must be done before window sizing)
+            _fretPositions = CalculateFretPositions();
+            _fretWidths = CalculateFretWidths(_fretPositions);
+
             // Set window to always on top
             SetAlwaysOnTop();
 
-            // Set initial window size
-            AppWindow.Resize(new Windows.Graphics.SizeInt32 { Width = 1150, Height = 350 });
+            // Set initial window size based on calculated fretboard width
+            int totalWidth = (int)Math.Ceiling(_fretPositions[FretCount] + 50); // 50px end margin
+            AppWindow.Resize(new Windows.Graphics.SizeInt32 { Width = totalWidth, Height = 350 });
 
             DrawFretboard();
+        }
+
+        private double[] CalculateFretPositions()
+        {
+            var positions = new double[FretCount + 1]; // 0 to 22 inclusive
+            positions[0] = StartX; // Nut position
+
+            for (int fret = 1; fret <= FretCount; fret++)
+            {
+                // Physics formula: distance from nut = ScaleLength × (1 - 2^(-fret/12))
+                double distanceFromNut = ScaleLength * (1.0 - Math.Pow(2.0, -fret / 12.0));
+                positions[fret] = StartX + (distanceFromNut * FretboardScale);
+            }
+
+            return positions;
+        }
+
+        private double[] CalculateFretWidths(double[] positions)
+        {
+            var widths = new double[FretCount];
+            for (int fret = 0; fret < FretCount; fret++)
+            {
+                widths[fret] = positions[fret + 1] - positions[fret];
+            }
+            return widths;
         }
 
         private void SetAlwaysOnTop()
@@ -135,9 +170,9 @@ namespace BleMidiMonitor
                     FontSize = 11,
                     Foreground = new SolidColorBrush(Colors.LightGray),
                     TextAlignment = TextAlignment.Center,
-                    Width = FretWidth
+                    Width = _fretWidths[fret]
                 };
-                Canvas.SetLeft(fretLabel, StartX + fret * FretWidth);
+                Canvas.SetLeft(fretLabel, _fretPositions[fret]);
                 Canvas.SetTop(fretLabel, StartY - 20);
                 FretboardCanvas.Children.Add(fretLabel);
             }
@@ -147,13 +182,13 @@ namespace BleMidiMonitor
             {
                 for (int fret = 0; fret < FretCount; fret++)
                 {
-                    double x = StartX + fret * FretWidth;
+                    double x = _fretPositions[fret];
                     double y = StartY + str * StringHeight;
 
                     // Draw fret cell background
                     var rect = new Rectangle
                     {
-                        Width = FretWidth - 2,
+                        Width = _fretWidths[fret] - 2,
                         Height = StringHeight - 2,
                         Fill = _normalBrush,
                         RadiusX = 3,
@@ -173,7 +208,7 @@ namespace BleMidiMonitor
                         FontWeight = new Windows.UI.Text.FontWeight(700),
                         Foreground = new SolidColorBrush(Colors.White),
                         TextAlignment = TextAlignment.Center,
-                        Width = FretWidth - 2,
+                        Width = _fretWidths[fret] - 2,
                         Visibility = Visibility.Collapsed
                     };
 
@@ -191,7 +226,7 @@ namespace BleMidiMonitor
                 {
                     X1 = StartX,
                     Y1 = StartY + str * StringHeight + StringHeight / 2,
-                    X2 = StartX + FretCount * FretWidth,
+                    X2 = _fretPositions[FretCount],
                     Y2 = StartY + str * StringHeight + StringHeight / 2,
                     Stroke = _stringLineBrush,
                     StrokeThickness = StringThicknesses[str]
@@ -204,9 +239,9 @@ namespace BleMidiMonitor
             {
                 var fretLine = new Line
                 {
-                    X1 = StartX + fret * FretWidth,
+                    X1 = _fretPositions[fret],
                     Y1 = StartY,
-                    X2 = StartX + fret * FretWidth,
+                    X2 = _fretPositions[fret],
                     Y2 = StartY + StringCount * StringHeight,
                     Stroke = _fretLineBrush,
                     StrokeThickness = fret == 0 ? 3 : 1.5
@@ -229,7 +264,8 @@ namespace BleMidiMonitor
                         Height = 12,
                         Fill = dotBrush
                     };
-                    double x = StartX + (fret - 1) * FretWidth + FretWidth / 2 - 6;
+                    double fretCenterX = (_fretPositions[fret - 1] + _fretPositions[fret]) / 2.0;
+                    double x = fretCenterX - 6; // Center 12px dot
                     double y = StartY + (StringCount * StringHeight) / 2 - 6;
                     Canvas.SetLeft(dot, x);
                     Canvas.SetTop(dot, y);
@@ -241,6 +277,9 @@ namespace BleMidiMonitor
             {
                 if (fret <= FretCount)
                 {
+                    double fretCenterX = (_fretPositions[fret - 1] + _fretPositions[fret]) / 2.0;
+                    double x = fretCenterX - 6; // Center 12px dot
+
                     // Top dot
                     var dot1 = new Ellipse
                     {
@@ -248,7 +287,6 @@ namespace BleMidiMonitor
                         Height = 12,
                         Fill = dotBrush
                     };
-                    double x = StartX + (fret - 1) * FretWidth + FretWidth / 2 - 6;
                     double y1 = StartY + StringHeight * 1.5 - 6;
                     Canvas.SetLeft(dot1, x);
                     Canvas.SetTop(dot1, y1);
