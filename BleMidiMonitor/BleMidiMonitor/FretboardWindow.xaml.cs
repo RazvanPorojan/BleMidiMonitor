@@ -22,6 +22,11 @@ namespace BleMidiMonitor
         private const double StartY = 10;
         private readonly string[] StringNames = { "e", "B", "G", "D", "A", "E" }; // High to low
 
+        // Open string notes for standard tuning (chromatic scale index)
+        // E=4, A=9, D=2, G=7, B=11, e=4
+        private readonly int[] OpenStringNotes = { 4, 11, 7, 2, 9, 4 }; // High to low: e, B, G, D, A, E
+        private readonly string[] NoteNames = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
+
         private readonly SolidColorBrush _normalBrush;
         private readonly SolidColorBrush _activeBrush;
         private readonly SolidColorBrush _fretLineBrush;
@@ -74,6 +79,18 @@ namespace BleMidiMonitor
             {
                 presenter.IsAlwaysOnTop = true;
             }
+        }
+
+        private string GetNoteName(int stringNumber, int fretNumber)
+        {
+            // stringNumber is 1-based, convert to 0-based for array access
+            int stringIndex = stringNumber - 1;
+            if (stringIndex < 0 || stringIndex >= OpenStringNotes.Length)
+                return "";
+
+            // Calculate note: (open string note + fret number) mod 12
+            int noteIndex = (OpenStringNotes[stringIndex] + fretNumber) % 12;
+            return NoteNames[noteIndex];
         }
 
         private void DrawFretboard()
@@ -138,11 +155,12 @@ namespace BleMidiMonitor
                     Canvas.SetTop(rect, y + 1);
                     FretboardCanvas.Children.Add(rect);
 
-                    // Create label for fret number (initially hidden)
+                    // Create label for fret number and note (initially hidden)
+                    string noteName = GetNoteName(str + 1, fret + 1);
                     var label = new TextBlock
                     {
-                        Text = (fret + 1).ToString(),
-                        FontSize = 18,
+                        Text = $"{fret + 1} {noteName}",
+                        FontSize = 16,
                         FontWeight = new Windows.UI.Text.FontWeight(700),
                         Foreground = new SolidColorBrush(Colors.White),
                         TextAlignment = TextAlignment.Center,
