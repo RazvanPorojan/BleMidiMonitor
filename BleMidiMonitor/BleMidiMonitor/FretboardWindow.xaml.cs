@@ -27,6 +27,9 @@ namespace BleMidiMonitor
         private readonly int[] OpenStringNotes = { 4, 11, 7, 2, 9, 4 }; // High to low: e, B, G, D, A, E
         private readonly string[] NoteNames = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
 
+        // String thicknesses (high e to low E) - thinner for higher strings, thicker for lower
+        private readonly double[] StringThicknesses = { 1.0, 1.5, 2.0, 2.5, 3.0, 3.5 };
+
         private readonly SolidColorBrush _normalBrush;
         private readonly SolidColorBrush _activeBrush;
         private readonly SolidColorBrush _fretLineBrush;
@@ -54,7 +57,7 @@ namespace BleMidiMonitor
             _normalBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(40, 128, 128, 128));
             _activeBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 200, 100));
             _fretLineBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(180, 160, 160, 160));
-            _stringLineBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(150, 140, 140, 140));
+            _stringLineBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(200, 180, 180, 180));
 
             // Pre-compute dictionary keys to avoid string allocations
             for (int str = 1; str <= StringCount; str++)
@@ -153,8 +156,6 @@ namespace BleMidiMonitor
                         Width = FretWidth - 2,
                         Height = StringHeight - 2,
                         Fill = _normalBrush,
-                        Stroke = _fretLineBrush,
-                        StrokeThickness = 1,
                         RadiusX = 3,
                         RadiusY = 3
                     };
@@ -185,7 +186,7 @@ namespace BleMidiMonitor
                     _fretLabels[key] = label;
                 }
 
-                // Draw horizontal string line
+                // Draw horizontal string line with varying thickness
                 var stringLine = new Line
                 {
                     X1 = StartX,
@@ -193,7 +194,7 @@ namespace BleMidiMonitor
                     X2 = StartX + FretCount * FretWidth,
                     Y2 = StartY + str * StringHeight + StringHeight / 2,
                     Stroke = _stringLineBrush,
-                    StrokeThickness = 1.5
+                    StrokeThickness = StringThicknesses[str]
                 };
                 FretboardCanvas.Children.Add(stringLine);
             }
