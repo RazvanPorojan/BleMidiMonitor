@@ -9,7 +9,7 @@ namespace BleMidiMonitor
     {
         private BleMidiManager _bleMidiManager;
         private ObservableCollection<BleMidiDevice> _devices;
-        private MidiLogBatcher _midiLogBatcher;
+        private ObservableCollection<string> _midiLog;
         private BleMidiDevice _connectedDevice;
         private int _messageCount = 0;
         private const int MaxLogMessages = 1000;
@@ -23,8 +23,8 @@ namespace BleMidiMonitor
             _devices = new ObservableCollection<BleMidiDevice>();
             DeviceListView.ItemsSource = _devices;
 
-            _midiLogBatcher = new MidiLogBatcher(MaxLogMessages, DispatcherQueue);
-            MidiLogListView.ItemsSource = _midiLogBatcher.DisplayCollection;
+            _midiLog = new ObservableCollection<string>();
+            MidiLogListView.ItemsSource = _midiLog;
 
             _fretState = new FretState();
 
@@ -195,18 +195,30 @@ namespace BleMidiMonitor
                 {
                     string logEntry = $"[{message.Timestamp:HH:mm:ss.fff}] {message.FormattedMessage}";
 
-                    // Just batch it - no UI thread operations
-                    _midiLogBatcher.AddMessage(logEntry);
-                    _messageCount++;
+                    // Update log immediately with High priority
+                    DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.High, () =>
+                    {
+                        _midiLog.Add(logEntry);
 
+                        // Remove old messages to maintain max count
+                        if (_midiLog.Count > MaxLogMessages)
+                        {
+                            _midiLog.RemoveAt(0);
+                        }
+                    });
+
+                    _messageCount++;
                     ProcessFretEvent(message);
                 }
 
-                // Update counter (throttled by batcher)
-                DispatcherQueue.TryEnqueue(() =>
+                // Update counter less frequently (every 10 messages)
+                if (_messageCount % 10 == 0)
                 {
-                    MessageCountText.Text = $"Messages: {_messageCount}";
-                });
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        MessageCountText.Text = $"Messages: {_messageCount}";
+                    });
+                }
             }
             catch (Exception ex)
             {
@@ -244,7 +256,7 @@ namespace BleMidiMonitor
 
         private void ClearLogButton_Click(object sender, RoutedEventArgs e)
         {
-            _midiLogBatcher.Clear();
+            _midiLog.Clear();
             _messageCount = 0;
             MessageCountText.Text = "Messages: 0";
         }
