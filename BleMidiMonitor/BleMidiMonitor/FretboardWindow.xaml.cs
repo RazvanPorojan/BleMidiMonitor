@@ -36,11 +36,19 @@ namespace BleMidiMonitor
         private readonly Dictionary<(int, int), bool> _fretStateCache = new Dictionary<(int, int), bool>();
         private readonly Dictionary<(int, int), string> _keyCache = new Dictionary<(int, int), string>();
 
+        // Chord detection
+        private readonly ChordDetector _chordDetector;
+        private DateTime _lastChordUpdate = DateTime.MinValue;
+        private const int ChordUpdateThrottleMs = 100;
+
         public FretboardWindow(FretState fretState)
         {
             InitializeComponent();
             _fretState = fretState;
             _fretState.FretChanged += OnFretChanged;
+
+            // Initialize chord detector
+            _chordDetector = new ChordDetector();
 
             // Initialize colors
             _normalBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(40, 128, 128, 128));
@@ -212,6 +220,14 @@ namespace BleMidiMonitor
             DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.High, () =>
             {
                 UpdateFretDisplay(e.StringNumber, e.FretNumber, e.IsActive);
+
+                // Throttle chord detection to avoid excessive updates during rapid changes
+                var now = DateTime.Now;
+                if ((now - _lastChordUpdate).TotalMilliseconds >= ChordUpdateThrottleMs)
+                {
+                    DetectAndUpdateChord();
+                    _lastChordUpdate = now;
+                }
             });
         }
 
@@ -243,6 +259,40 @@ namespace BleMidiMonitor
                     rect.Fill = _normalBrush;
                     label.Visibility = Visibility.Collapsed;
                 }
+            }
+        }
+
+        private void DetectAndUpdateChord()
+        {
+            var activeFrets = _fretState.GetAllActiveFrets();
+            var chordResult = _chordDetector.DetectChord(activeFrets);
+            UpdateChordDisplay(chordResult);
+        }
+
+        private void UpdateChordDisplay(ChordResult result)
+        {
+            if (result.IsValid && result.Confidence >= 60)
+            {
+                // Valid chord detected
+                ChordNameDisplay.Text = result.ChordName;
+                ChordNameDisplay.Foreground = new SolidColorBrush(
+                    Windows.UI.Color.FromArgb(255, 0, 200, 100)); // Green
+                ChordNotesDisplay.Text = $"({string.Join(", ", result.NoteNames)})";
+            }
+            else if (result.NoteNames?.Count > 0)
+            {
+                // Notes detected but no clear chord match
+                ChordNameDisplay.Text = "?";
+                ChordNameDisplay.Foreground = new SolidColorBrush(
+                    Windows.UI.Color.FromArgb(255, 200, 200, 0)); // Yellow
+                ChordNotesDisplay.Text = $"({string.Join(", ", result.NoteNames)})";
+            }
+            else
+            {
+                // No notes pressed
+                ChordNameDisplay.Text = "--";
+                ChordNameDisplay.Foreground = new SolidColorBrush(Colors.Gray);
+                ChordNotesDisplay.Text = "";
             }
         }
 

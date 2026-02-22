@@ -27,9 +27,38 @@
         <ScrollViewer Grid.Row="1"
                       HorizontalScrollBarVisibility="Auto"
                       VerticalScrollBarVisibility="Disabled">
-            <Canvas x:Name="FretboardCanvas"
-                    Width="1100"
-                    Height="240"/>
+            <StackPanel>
+                <!-- Chord Display -->
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="2"
+                        CornerRadius="8"
+                        Padding="15,8"
+                        Margin="0,0,0,10"
+                        HorizontalAlignment="Left">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <TextBlock Text="Chord:"
+                                   FontSize="14"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   VerticalAlignment="Center"/>
+                        <TextBlock x:Name="ChordNameDisplay"
+                                   Text="--"
+                                   FontSize="24"
+                                   FontWeight="Bold"
+                                   VerticalAlignment="Center"/>
+                        <TextBlock x:Name="ChordNotesDisplay"
+                                   Text=""
+                                   FontSize="12"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Fretboard Canvas -->
+                <Canvas x:Name="FretboardCanvas"
+                        Width="1100"
+                        Height="240"/>
+            </StackPanel>
         </ScrollViewer>
     </Grid>
 </Window>
