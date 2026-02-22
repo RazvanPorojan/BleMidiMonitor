@@ -1,10 +1,11 @@
 using System.Collections.Generic;
+using System.Linq;
 
 namespace BleMidiMonitor
 {
     public class FretState
     {
-        private readonly Dictionary<int, int> _activeFretsPerString = new Dictionary<int, int>();
+        private readonly Dictionary<int, HashSet<int>> _activeFretsPerString = new Dictionary<int, HashSet<int>>();
         private readonly object _lock = new object();
 
         public event System.EventHandler<FretChangedEventArgs> FretChanged;
@@ -17,17 +18,29 @@ namespace BleMidiMonitor
             {
                 if (isActive)
                 {
-                    // Skip if already active at same fret
-                    if (_activeFretsPerString.TryGetValue(stringNumber, out int current) && current == fretNumber)
-                        return;
+                    // Get or create the set for this string
+                    if (!_activeFretsPerString.TryGetValue(stringNumber, out var frets))
+                    {
+                        frets = new HashSet<int>();
+                        _activeFretsPerString[stringNumber] = frets;
+                    }
 
-                    _activeFretsPerString[stringNumber] = fretNumber;
-                    shouldFire = true;
+                    // Add fret to the set - returns true if newly added
+                    shouldFire = frets.Add(fretNumber);
                 }
                 else
                 {
-                    // Skip if not currently active
-                    shouldFire = _activeFretsPerString.Remove(stringNumber);
+                    // Remove fret from the set only if it's actually tracked
+                    if (_activeFretsPerString.TryGetValue(stringNumber, out var frets))
+                    {
+                        shouldFire = frets.Remove(fretNumber);
+
+                        // Clean up empty set
+                        if (frets.Count == 0)
+                        {
+                            _activeFretsPerString.Remove(stringNumber);
+                        }
+                    }
                 }
             }
 
@@ -47,7 +60,12 @@ namespace BleMidiMonitor
         {
             lock (_lock)
             {
-                return _activeFretsPerString.TryGetValue(stringNumber, out int fret) ? fret : null;
+                if (_activeFretsPerString.TryGetValue(stringNumber, out var frets) && frets.Count > 0)
+                {
+                    // Return the highest fret (most realistic for guitar)
+                    return frets.Max();
+                }
+                return null;
             }
         }
 
@@ -55,7 +73,28 @@ namespace BleMidiMonitor
         {
             lock (_lock)
             {
-                return new Dictionary<int, int>(_activeFretsPerString);
+                var result = new Dictionary<int, int>();
+                foreach (var kvp in _activeFretsPerString)
+                {
+                    if (kvp.Value.Count > 0)
+                    {
+                        result[kvp.Key] = kvp.Value.Max();
+                    }
+                }
+                return result;
+            }
+        }
+
+        public Dictionary<int, HashSet<int>> GetAllActiveFretsFull()
+        {
+            lock (_lock)
+            {
+                var result = new Dictionary<int, HashSet<int>>();
+                foreach (var kvp in _activeFretsPerString)
+                {
+                    result[kvp.Key] = new HashSet<int>(kvp.Value);
+                }
+                return result;
             }
         }
 

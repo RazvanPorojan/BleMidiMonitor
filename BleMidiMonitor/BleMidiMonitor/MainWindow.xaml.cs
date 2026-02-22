@@ -15,6 +15,7 @@ namespace BleMidiMonitor
         private const int MaxLogMessages = 1000;
         private FretState _fretState;
         private FretboardWindow _fretboardWindow;
+        private bool _isFretboardActive = false;
 
         public MainWindow()
         {
@@ -193,25 +194,27 @@ namespace BleMidiMonitor
 
                 foreach (var message in messages)
                 {
-                    string logEntry = $"[{message.Timestamp:HH:mm:ss.fff}] {message.FormattedMessage}";
-
-                    // Update log immediately with High priority
-                    DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.High, () =>
+                    // Only update log if fretboard is NOT active (optimization)
+                    if (!_isFretboardActive)
                     {
-                        _midiLog.Add(logEntry);
+                        string logEntry = $"[{message.Timestamp:HH:mm:ss.fff}] {message.FormattedMessage}";
 
-                        // Remove old messages to maintain max count
-                        if (_midiLog.Count > MaxLogMessages)
+                        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.High, () =>
                         {
-                            _midiLog.RemoveAt(0);
-                        }
-                    });
+                            _midiLog.Add(logEntry);
+
+                            if (_midiLog.Count > MaxLogMessages)
+                            {
+                                _midiLog.RemoveAt(0);
+                            }
+                        });
+                    }
 
                     _messageCount++;
                     ProcessFretEvent(message);
                 }
 
-                // Update counter less frequently (every 10 messages)
+                // Update counter less frequently
                 if (_messageCount % 10 == 0)
                 {
                     DispatcherQueue.TryEnqueue(() =>
@@ -266,10 +269,13 @@ namespace BleMidiMonitor
             if (_fretboardWindow == null)
             {
                 _fretboardWindow = new FretboardWindow(_fretState);
+                _isFretboardActive = true;  // Enable optimization
+
                 _fretboardWindow.Closed += (s, args) =>
                 {
                     _fretboardWindow?.Cleanup();
                     _fretboardWindow = null;
+                    _isFretboardActive = false;  // Disable optimization
                 };
                 _fretboardWindow.Activate();
             }
